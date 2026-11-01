@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}LevelUp — History{% endblock %}
+
+{% block content %}
+<section>
+    <hgroup>
+        <h2>📜 Task History</h2>
+        <p>All processed requests and their outcomes</p>
+    </hgroup>
+
+    <!-- Filter -->
+    <fieldset role="group">
+        <select id="status-filter" onchange="loadHistory()">
+            <option value="">All statuses</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="executed">✅ Executed</option>
+            <option value="declined">❌ Declined</option>
+            <option value="failed">⚠️ Failed</option>
+        </select>
+    </fieldset>
+
+    <div id="history-list">
+        <article aria-busy="true">Loading...</article>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', loadHistory);
+
+    async function loadHistory() {
+        const container = document.getElementById('history-list');
+        const statusFilter = document.getElementById('status-filter').value;
+        const url = statusFilter ? `/api/tasks/?status=${statusFilter}` : '/api/tasks/';
+
+        try {
+            const res = await fetch(url);
+            const tasks = await res.json();
+
+            if (tasks.length === 0) {
+                container.innerHTML = '<article><p>No tasks found.</p></article>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => {
+                const statusBadge = getStatusBadge(task.status);
+                const categoryIcon = getCategoryIcon(task.category);
+                const date = task.created_at ? new Date(task.created_at).toLocaleString() : 'Unknown';
+
+                return `
+                    <article class="task-card task-${task.status}">
+                        <header>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong>${categoryIcon} ${escapeHtml(task.summary_text || 'No summary')}</strong>
+                                ${statusBadge}
+                            </div>
+                            <small>${escapeHtml(task.child_name)} · ${date}</small>
+                        </header>
+                        ${task.transcript ? `<blockquote style="font-size: 0.85rem;">"${escapeHtml(task.transcript.substring(0, 150))}${task.transcript.length > 150 ? '...' : ''}"</blockquote>` : ''}
+                        ${task.status === 'pending' ?
+                            `<a href="/task/${task.id}" role="button" class="outline" style="font-size: 0.85rem;">Review & Decide →</a>` :
+                            ''
+                        }
+                    </article>
+                `;
+            }).join('');
+
+        } catch (err) {
+            container.innerHTML = '<article><p>Error loading history.</p></article>';
+            console.error(err);
+        }
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'pending': '<mark style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">⏳ Pending</mark>',
+            'executed': '<mark style="background: #22c55e; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">✅ Executed</mark>',
+            'declined': '<mark style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">❌ Declined</mark>',
+            'failed': '<mark style="background: #6b7280; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">⚠️ Failed</mark>',
+            'approved': '<mark style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">👍 Approved</mark>',
+        };
+        return badges[status] || `<mark>${status}</mark>`;
+    }
+
+    function getCategoryIcon(category) {
+        switch (category) {
+            case 'food': return '🍕';
+            case 'cab': return '🚕';
+            default: return '📋';
+        }
+    }
+</script>
+{% endblock %}

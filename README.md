@@ -1,34 +1,52 @@
-# AI-Powered Parental Task Delegation App
+# 📋 LevelUp — AI-Powered Parental Task Delegation PWA
 
-Welcome to the AI-Powered Parental Task Delegation App! This project is designed to help parents manage tasks (like ordering food or booking a cab) requested by children who do not have independent internet access. 
+An AI-driven task delegation companion designed to help parents effortlessly handle requests (food ordering, cab booking) from children who lack independent internet access, while providing instant triage for emergencies.
 
-By simply making a standard phone call to the parent, the application will automatically transcribe the call, extract the task intent using AI (OpenAI Whisper + GPT-4), and present a simple "Accept/Decline" summary card to the parent. It also includes an emergency detection system that bypasses normal approvals to alert the parent immediately if distress is detected.
-
-## 📚 Documentation
-
-The project documentation is split into three main files to help you run, understand, and build upon the application:
-
-### 1. [How to Run the Application](./RUN_INSTRUCTIONS.md)
-Start here if you want to get the project up and running. This guide provides detailed, step-by-step instructions on:
-- Setting up the Python virtual environment and installing dependencies.
-- Configuring your OpenAI API keys.
-- Starting the Flask backend server.
-- Opening and running the Android application via Android Studio.
-
-### 2. [Developer Guide](./DEVELOPER_GUIDE.md)
-Read this if you want to understand how the system is built. This guide offers an in-depth look at the architecture:
-- **Backend**: Explains the Flask routing, SQLAlchemy models, Pydantic schemas, and the AI service pipeline.
-- **Frontend**: Details the Android Native (Java) structure, including Retrofit networking, call capture fallbacks, and FCM push notification handling.
-
-### 3. [Known Limitations](./KNOWN_LIMITATIONS.md)
-Review this document to understand the technical constraints of the current Phase 1 and Phase 2 prototypes. It covers important details regarding:
-- The reliability of automatic, silent call recording across different Android OEMs.
-- The limitations of GPS tracking for offline feature phones during emergencies.
-- What aspects of the system (like external API executions and voice biometrics) are currently mocked for prototyping.
+The application operates as a standalone, mobile-first **Progressive Web App (PWA)** that runs directly on an Android device via **Termux** or any standard Python server.
 
 ---
 
-### Tech Stack Summary
-- **Backend**: Python, Flask, SQLAlchemy (SQLite), Pydantic
-- **AI**: OpenAI Whisper (STT), GPT-4o (Structured Intent Extraction)
-- **Frontend**: Android (Java), Retrofit, Firebase Cloud Messaging (FCM)
+## ⚡ Core Value Loop
+
+```
+Child's Voice Request → In-Browser / Upload Audio → STT Transcription → Gemini Intent Understanding → 1-Tap Approval Card → Execution
+                                                                      ↳ Distress Detected → EMERGENCY BYPASS
+```
+
+* **Zero Internet Required for Child**: Child interacts naturally via normal voice call.
+* **Low Mental Load for Parent**: Instead of opening food/ride apps manually, parent gets a concise summary card with single-tap **Accept / Decline**.
+* **Safety First**: Emergencies bypass approval completely, triggering persistent alerts, auto-escalation, and location logging.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Backend**: Python 3.10+, Flask, SQLAlchemy, SQLite, Pydantic
+- **AI & STT**: Google Gemini API (`gemini-2.5-flash`), Sarvam STT API, local safety keyword fallback
+- **Frontend**: Jinja2, Vanilla JavaScript, HTML5 MediaRecorder API, [Pico CSS](https://picocss.com/) (classless, ~10KB)
+- **PWA Features**: Web App Manifest (`display: standalone`), Service Worker offline caching, Web Notifications
+- **Deployment**: Local Android phone hosting via **Termux** or standard Linux/macOS/Windows machine
+
+---
+
+## 📚 Documentation Index
+
+| Guide | Description |
+|---|---|
+| **[Termux Setup Guide](./TERMUX_SETUP.md)** | Step-by-step instructions to run and install the PWA on Android via Termux |
+| **[Run Instructions](./RUN_INSTRUCTIONS.md)** | Development guide for running on PC or testing end-to-end flows |
+| **[Developer Guide](./DEVELOPER_GUIDE.md)** | Full architectural breakdown of database models, services, APIs, and PWA structure |
+| **[Known Limitations](./KNOWN_LIMITATIONS.md)** | Technical constraints, trade-offs, and future milestones |
+| **[Planning Docs](./planning/)** | Original masterplans and conceptual design specifications |
+
+---
+
+## 🚀 Quick Start (Local PC)
+
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+Visit `http://localhost:8000` in your browser.

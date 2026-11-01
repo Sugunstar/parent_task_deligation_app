@@ -1,0 +1,189 @@
+/* ─── LevelUp PWA Styles ───────────────────────────── */
+
+/* App header — fixed top bar */
+.app-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--pico-background-color);
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    padding: 0.25rem 1rem;
+}
+
+.app-header nav {
+    margin: 0;
+    padding: 0;
+}
+
+/* Main content — account for fixed header and bottom nav */
+.app-main {
+    margin-top: 60px;
+    margin-bottom: 80px;
+    padding-bottom: 1rem;
+}
+
+/* Bottom navigation bar */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: var(--pico-background-color);
+    border-top: 1px solid var(--pico-muted-border-color);
+    padding: 0.5rem 0;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: var(--pico-muted-color);
+    font-size: 0.75rem;
+    padding: 0.25rem 1rem;
+    border-radius: 8px;
+    transition: color 0.2s;
+}
+
+.nav-item.active {
+    color: var(--pico-primary);
+}
+
+.nav-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.nav-label {
+    margin-top: 2px;
+}
+
+/* ─── Cards ─────────────────────────────────────────── */
+
+.child-card header {
+    padding-bottom: 0.25rem;
+}
+
+.child-card footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.task-card {
+    border-left: 4px solid var(--pico-muted-border-color);
+}
+
+.task-pending {
+    border-left-color: #f59e0b;
+}
+
+.task-executed {
+    border-left-color: #22c55e;
+}
+
+.task-declined {
+    border-left-color: #ef4444;
+}
+
+.task-failed {
+    border-left-color: #6b7280;
+}
+
+/* ─── Approval Card ─────────────────────────────────── */
+
+.approval-card {
+    border: 2px solid var(--pico-primary);
+    border-radius: 8px;
+}
+
+.approve-btn {
+    background: #22c55e !important;
+    border-color: #22c55e !important;
+    color: white !important;
+}
+
+.approve-btn:hover {
+    background: #16a34a !important;
+    border-color: #16a34a !important;
+}
+
+.decline-btn {
+    color: #ef4444 !important;
+    border-color: #ef4444 !important;
+}
+
+.decline-btn:hover {
+    background: #ef4444 !important;
+    color: white !important;
+}
+
+/* ─── Emergency Card ────────────────────────────────── */
+
+.emergency-card {
+    border: 3px solid #ef4444;
+    border-radius: 8px;
+    background: #fef2f2;
+}
+
+.emergency-card.active {
+    animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+.emergency-card.acknowledged {
+    border-color: #22c55e;
+    background: #f0fdf4;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: #ef4444; }
+    50% { border-color: #fca5a5; }
+}
+
+.emergency-card header {
+    text-align: center;
+    color: #ef4444;
+}
+
+/* ─── Error Card ────────────────────────────────────── */
+
+.error-card {
+    border-left: 4px solid #ef4444;
+}
+
+/* ─── Recording ─────────────────────────────────────── */
+
+#record-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+    transition: all 0.3s;
+}
+
+#record-btn.recording {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    animation: pulse-record 1s ease-in-out infinite;
+}
+
+@keyframes pulse-record {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* ─── Responsive ────────────────────────────────────── */
+
+@media (max-width: 576px) {
+    .app-main {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+}

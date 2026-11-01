@@ -1,17 +1,26 @@
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./parental_task_app.db"
-# For SQLite, we need check_same_thread=False
+# Database path relative to the backend directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "parental_task_app.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Use the non-deprecated declarative_base import
 Base = declarative_base()
 
+
 def get_db():
+    """
+    Yields a database session and ensures it's closed after use.
+    Used as a context manager or dependency.
+    """
     db = SessionLocal()
     try:
         yield db

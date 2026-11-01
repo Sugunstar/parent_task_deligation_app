@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}🚨 EMERGENCY — LevelUp{% endblock %}
+
+{% block content %}
+<section id="emergency-detail">
+    <article aria-busy="true" class="emergency-card">Loading emergency details...</article>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const EVENT_ID = {{ event_id }};
+
+    document.addEventListener('DOMContentLoaded', loadEmergency);
+
+    async function loadEmergency() {
+        const container = document.getElementById('emergency-detail');
+
+        try {
+            // Fetch all emergencies and find ours
+            const res = await fetch('/api/emergency/');
+            const events = await res.json();
+            const event = events.find(e => e.id === EVENT_ID);
+
+            if (!event) {
+                container.innerHTML = '<article><p>Emergency event not found.</p></article>';
+                return;
+            }
+
+            const date = event.created_at ? new Date(event.created_at).toLocaleString() : 'Unknown';
+
+            container.innerHTML = `
+                <article class="emergency-card ${event.acknowledged ? 'acknowledged' : 'active'}">
+                    <header>
+                        <h2>🚨 EMERGENCY ALERT</h2>
+                    </header>
+
+                    <div style="text-align: center; margin: 1rem 0;">
+                        <h3>${escapeHtml(event.child_name)}</h3>
+                        <p><strong>Reason:</strong> ${escapeHtml(event.trigger_reason)}</p>
+                        <p><small>${date}</small></p>
+                    </div>
+
+                    <h4>What was said</h4>
+                    <blockquote>"${escapeHtml(event.transcript_snippet)}"</blockquote>
+
+                    ${event.location_lat && event.location_lng ?
+                        `<p>📍 Location: ${event.location_lat}, ${event.location_lng}</p>` :
+                        '<p>📍 Location: Not available</p>'
+                    }
+
+                    <p>
+                        Backup contact notified: ${event.backup_contact_notified ? '✅ Yes' : '⏳ Will be notified if not acknowledged'}
+                    </p>
+
+                    <footer>
+                        ${event.acknowledged ?
+                            '<p style="text-align: center;">✅ <strong>Acknowledged</strong></p>' :
+                            `<button class="contrast" onclick="acknowledgeEmergency()" style="width: 100%; padding: 1rem; font-size: 1.1rem;">
+                                ✅ I'm Aware — Acknowledge Emergency
+                            </button>`
+                        }
+                    </footer>
+                </article>
+
+                <a href="/" role="button" class="outline" style="width: 100%; text-align: center;">← Back to Home</a>
+            `;
+
+        } catch (err) {
+            container.innerHTML = '<article><p>Error loading emergency details.</p></article>';
+            console.error(err);
+        }
+    }
+
+    async function acknowledgeEmergency() {
+        try {
+            const res = await fetch(`/api/emergency/${EVENT_ID}/acknowledge`, {
+                method: 'POST',
+            });
+
+            if (res.ok) {
+                loadEmergency(); // Reload to show acknowledged state
+            } else {
+                alert('Failed to acknowledge');
+            }
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+</script>
+{% endblock %}

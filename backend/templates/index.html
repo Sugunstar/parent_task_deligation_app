@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}LevelUp — Home{% endblock %}
+
+{% block content %}
+<section>
+    <hgroup>
+        <h2>Your Children</h2>
+        <p>Manage registered child profiles</p>
+    </hgroup>
+
+    <!-- Child list (populated by JS) -->
+    <div id="children-list">
+        <article aria-busy="true">Loading...</article>
+    </div>
+
+    <!-- Add child form -->
+    <details id="add-child-section">
+        <summary role="button" class="outline">+ Add Child</summary>
+        <form id="add-child-form" onsubmit="return addChild(event)">
+            <label>
+                Name
+                <input type="text" name="name" placeholder="Child's name" required>
+            </label>
+            <label>
+                Phone Number
+                <input type="tel" name="phone_number" placeholder="+91XXXXXXXXXX" required>
+            </label>
+            <label>
+                Age
+                <input type="number" name="age" min="1" max="18" placeholder="Age" required>
+            </label>
+            <label>
+                Backup Contact (optional)
+                <input type="tel" name="backup_contact_phone" placeholder="Emergency contact number">
+            </label>
+            <button type="submit">Register Child</button>
+        </form>
+    </details>
+</section>
+
+<!-- Pending tasks notification -->
+<section id="pending-section" style="display: none;">
+    <hgroup>
+        <h3>⏳ Pending Approvals</h3>
+        <p>Tasks waiting for your decision</p>
+    </hgroup>
+    <div id="pending-tasks"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load children on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadChildren();
+        loadPendingTasks();
+    });
+
+    async function loadChildren() {
+        const container = document.getElementById('children-list');
+        try {
+            const res = await fetch('/api/children/');
+            const children = await res.json();
+
+            if (children.length === 0) {
+                container.innerHTML = '<article><p>No children registered yet. Add one below!</p></article>';
+                return;
+            }
+
+            container.innerHTML = children.map(child => `
+                <article class="child-card">
+                    <header>
+                        <hgroup>
+                            <h3>${escapeHtml(child.name)}</h3>
+                            <p>Age ${child.age} · ${escapeHtml(child.phone_number)}</p>
+                        </hgroup>
+                    </header>
+                    <p>
+                        <small>
+                            Approval: ${child.approval_mode.replace('_', ' ')}
+                            ${child.backup_contact_phone ? ' · Backup: ' + escapeHtml(child.backup_contact_phone) : ''}
+                        </small>
+                    </p>
+                    <footer>
+                        <a href="/record?child_id=${child.id}" role="button" class="outline" style="font-size: 0.85rem;">
+                            🎙️ Record for ${escapeHtml(child.name)}
+                        </a>
+                        <button class="outline secondary" style="font-size: 0.85rem;" onclick="deleteChild(${child.id}, '${escapeHtml(child.name)}')">
+                            🗑️
+                        </button>
+                    </footer>
+                </article>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = '<article><p>Error loading children. Is the server running?</p></article>';
+            console.error(err);
+        }
+    }
+
+    async function addChild(e) {
+        e.preventDefault();
+        const form = e.target;
+        const data = {
+            name: form.name.value.trim(),
+            phone_number: form.phone_number.value.trim(),
+            age: parseInt(form.age.value),
+            backup_contact_phone: form.backup_contact_phone.value.trim() || null,
+        };
+
+        try {
+            const res = await fetch('/api/children/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+
+            if (res.ok) {
+                form.reset();
+                document.getElementById('add-child-section').removeAttribute('open');
+                loadChildren();
+            } else {
+                const err = await res.json();
+                alert('Error: ' + (err.error || 'Failed to add child'));
+            }
+        } catch (err) {
+            alert('Network error');
+            console.error(err);
+        }
+        return false;
+    }
+
+    async function deleteChild(id, name) {
+        if (!confirm(`Delete ${name} and all their task history?`)) return;
+
+        try {
+            const res = await fetch(`/api/children/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadChildren();
+            } else {
+                alert('Failed to delete');
+            }
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    async function loadPendingTasks() {
+        try {
+            const res = await fetch('/api/tasks/?status=pending');
+            const tasks = await res.json();
+
+            const section = document.getElementById('pending-section');
+            const container = document.getElementById('pending-tasks');
+
+            if (tasks.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            container.innerHTML = tasks.map(task => `
+                <article class="task-card task-pending">
+                    <header>
+                        <strong>${escapeHtml(task.summary_text)}</strong>
+                        <small>${escapeHtml(task.child_name)} · ${task.category}</small>
+                    </header>
+                    <a href="/task/${task.id}" role="button" style="font-size: 0.85rem;">
+                        Review & Decide →
+                    </a>
+                </article>
+            `).join('');
+        } catch (err) {
+            console.error('Error loading pending tasks:', err);
+        }
+    }
+</script>
+{% endblock %}

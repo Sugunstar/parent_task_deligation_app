@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}LevelUp — Record{% endblock %}
+
+{% block content %}
+<section>
+    <hgroup>
+        <h2>🎙️ Record & Process</h2>
+        <p>Record the child's request or upload an audio file</p>
+    </hgroup>
+
+    <!-- Step 1: Select child -->
+    <label for="child-select">Select Child</label>
+    <select id="child-select" required>
+        <option value="" disabled selected>Loading children...</option>
+    </select>
+
+    <!-- Step 2: Record or Upload -->
+    <div id="audio-section" style="margin-top: 1rem;">
+        <!-- Record button -->
+        <div id="recorder-controls">
+            <button id="record-btn" onclick="toggleRecording()" class="contrast">
+                🎙️ Hold to Record
+            </button>
+            <p id="record-status" style="text-align: center;"><small>Tap to start recording</small></p>
+
+            <!-- Audio preview -->
+            <audio id="audio-preview" controls style="display: none; width: 100%; margin-top: 0.5rem;"></audio>
+        </div>
+
+        <p style="text-align: center; margin: 1rem 0;"><small>— or —</small></p>
+
+        <!-- File upload fallback -->
+        <label for="audio-upload">
+            Upload audio file
+            <input type="file" id="audio-upload" accept="audio/*" onchange="handleFileUpload(this)">
+        </label>
+    </div>
+
+    <!-- Step 3: Process button -->
+    <button id="process-btn" onclick="processAudio()" disabled style="margin-top: 1rem;">
+        🚀 Process Audio
+    </button>
+
+    <!-- Processing indicator -->
+    <article id="processing-indicator" style="display: none;" aria-busy="true">
+        <p>Processing audio... Transcribing and analyzing intent...</p>
+    </article>
+
+    <!-- Result card -->
+    <div id="result-section" style="display: none;">
+        <!-- Filled dynamically by JS -->
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordedBlob = null;
+    let isRecording = false;
+
+    // Load children into select
+    document.addEventListener('DOMContentLoaded', async () => {
+        const select = document.getElementById('child-select');
+        try {
+            const res = await fetch('/api/children/');
+            const children = await res.json();
+
+            if (children.length === 0) {
+                select.innerHTML = '<option value="" disabled selected>No children registered — add one from Home</option>';
+                return;
+            }
+
+            select.innerHTML = '<option value="" disabled selected>Choose a child...</option>' +
+                children.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (age ${c.age})</option>`).join('');
+
+            // Pre-select if child_id in URL params
+            const params = new URLSearchParams(window.location.search);
+            const preselect = params.get('child_id');
+            if (preselect) {
+                select.value = preselect;
+            }
+        } catch (err) {
+            select.innerHTML = '<option value="" disabled selected>Error loading children</option>';
+        }
+    });
+
+    async function toggleRecording() {
+        const btn = document.getElementById('record-btn');
+        const status = document.getElementById('record-status');
+        const preview = document.getElementById('audio-preview');
+
+        if (!isRecording) {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                        ? 'audio/webm;codecs=opus'
+                        : 'audio/webm'
+                });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    const url = URL.createObjectURL(recordedBlob);
+                    preview.src = url;
+                    preview.style.display = 'block';
+                    document.getElementById('process-btn').disabled = false;
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                btn.textContent = '⏹️ Stop Recording';
+                btn.classList.add('recording');
+                status.innerHTML = '<small>🔴 Recording...</small>';
+
+            } catch (err) {
+                alert('Microphone access denied. Please allow microphone access.');
+                console.error(err);
+            }
+        } else {
+            // Stop recording
+            mediaRecorder.stop();
+            isRecording = false;
+            btn.textContent = '🎙️ Record Again';
+            btn.classList.remove('recording');
+            status.innerHTML = '<small>✅ Recording ready. Tap Process to continue.</small>';
+        }
+    }
+
+    function handleFileUpload(input) {
+        if (input.files.length > 0) {
+            recordedBlob = input.files[0];
+            const preview = document.getElementById('audio-preview');
+            preview.src = URL.createObjectURL(recordedBlob);
+            preview.style.display = 'block';
+            document.getElementById('process-btn').disabled = false;
+            document.getElementById('record-status').innerHTML = '<small>✅ File selected. Tap Process to continue.</small>';
+        }
+    }
+
+    async function processAudio() {
+        const childId = document.getElementById('child-select').value;
+        if (!childId) {
+            alert('Please select a child first');
+            return;
+        }
+        if (!recordedBlob) {
+            alert('No audio recorded or uploaded');
+            return;
+        }
+
+        const processBtn = document.getElementById('process-btn');
+        const indicator = document.getElementById('processing-indicator');
+        const resultSection = document.getElementById('result-section');
+
+        processBtn.disabled = true;
+        indicator.style.display = 'block';
+        resultSection.style.display = 'none';
+
+        const formData = new FormData();
+        const ext = recordedBlob.type.includes('webm') ? '.webm' :
+                    recordedBlob.type.includes('mp3') ? '.mp3' : '.wav';
+        formData.append('audio_file', recordedBlob, `recording${ext}`);
+        formData.append('child_id', childId);
+
+        try {
+            const res = await fetch('/api/calls/upload-and-process', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await res.json();
+            indicator.style.display = 'none';
+
+            if (!res.ok) {
+                resultSection.innerHTML = `<article class="error-card"><p>❌ ${escapeHtml(data.error || 'Processing failed')}</p></article>`;
+                resultSection.style.display = 'block';
+                processBtn.disabled = false;
+                return;
+            }
+
+            if (data.is_emergency) {
+                // Emergency — redirect to emergency page
+                resultSection.innerHTML = `
+                    <article class="emergency-card">
+                        <header><h3>🚨 EMERGENCY DETECTED</h3></header>
+                        <p><strong>Reason:</strong> ${escapeHtml(data.emergency_event?.trigger_reason || 'Distress detected')}</p>
+                        <p><strong>Transcript:</strong> "${escapeHtml(data.transcript)}"</p>
+                        <a href="/emergency/${data.emergency_event?.id || 0}" role="button" class="contrast">
+                            View Emergency Alert →
+                        </a>
+                    </article>
+                `;
+            } else {
+                // Normal task — show approval card
+                const details = data.task?.details || {};
+                resultSection.innerHTML = `
+                    <article class="approval-card">
+                        <header>
+                            <hgroup>
+                                <h3>${getCategoryIcon(data.task?.category)} ${escapeHtml(data.task?.summary_text || 'No task detected')}</h3>
+                                <p>Confidence: ${Math.round((data.task?.confidence || 0) * 100)}%</p>
+                            </hgroup>
+                        </header>
+                        <blockquote>"${escapeHtml(data.transcript)}"</blockquote>
+                        <p><small>${Object.entries(details).map(([k,v]) => `<strong>${k}:</strong> ${v}`).join(' · ')}</small></p>
+                        <footer>
+                            <div class="grid">
+                                <button class="approve-btn" onclick="submitDecision(${data.task_id}, 'approved')">✅ Approve</button>
+                                <button class="decline-btn outline secondary" onclick="submitDecision(${data.task_id}, 'declined')">❌ Decline</button>
+                            </div>
+                        </footer>
+                    </article>
+                `;
+            }
+
+            resultSection.style.display = 'block';
+
+        } catch (err) {
+            indicator.style.display = 'none';
+            resultSection.innerHTML = '<article class="error-card"><p>❌ Network error. Is the server running?</p></article>';
+            resultSection.style.display = 'block';
+            processBtn.disabled = false;
+            console.error(err);
+        }
+    }
+
+    async function submitDecision(taskId, decision) {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/decision`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ decision }),
+            });
+
+            const data = await res.json();
+            const resultSection = document.getElementById('result-section');
+
+            if (res.ok) {
+                const statusEmoji = decision === 'approved' ? '✅' : '❌';
+                const statusText = decision === 'approved' ? 'Approved & Executed' : 'Declined';
+                resultSection.innerHTML = `
+                    <article>
+                        <h3>${statusEmoji} Task ${statusText}</h3>
+                        <p>Decision recorded.</p>
+                        <div class="grid">
+                            <a href="/" role="button" class="outline">← Home</a>
+                            <a href="/history" role="button" class="outline">View History →</a>
+                        </div>
+                    </article>
+                `;
+            } else {
+                alert('Error: ' + (data.error || 'Failed to submit decision'));
+            }
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    function getCategoryIcon(category) {
+        switch (category) {
+            case 'food': return '🍕';
+            case 'cab': return '🚕';
+            default: return '📋';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,1 +1,33 @@
-planning/
+# Environment & Secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# Databases
+*.db
+*.sqlite3
+
+# Audio uploads (keep only .gitkeep)
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# IDEs & Editor metadata
+.idea/
+.vscode/
+.claude/
+*.lock
+
+# Build artifacts
+build/
+.gradle/

@@ -1,80 +1,80 @@
 # How to Run the Application
 
-This guide provides step-by-step instructions on how to run both the Python Flask Backend and the Android Frontend locally for development and testing.
+This guide covers running the **LevelUp Parental Task Delegation PWA** on a local development machine (Linux/macOS/Windows) or directly on an Android device via Termux.
 
 ---
 
-## 1. Running the Flask Backend
+## Option 1: Running on a Development Computer (Linux / macOS / Windows)
 
-The backend is a Python application that uses Flask, SQLAlchemy (SQLite), and OpenAI.
+### 1. Prerequisites
+- **Python 3.10+** installed.
+- (Optional) `uv` or standard `python -m venv`.
 
-### Prerequisites
-- Python 3.10 or higher installed.
-- An OpenAI API Key (for Whisper STT and GPT-4 logic).
+### 2. Setup Virtual Environment
+Navigate to the `backend` folder:
+```bash
+cd backend
 
-### Setup Steps
-1. **Navigate to the Backend Directory:**
-   Open a terminal and navigate to the backend folder:
-   ```bash
-   cd child_parent_system/backend
-   ```
+# Using uv (fastest)
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
 
-2. **Create a Virtual Environment:**
-   It is highly recommended to use a virtual environment to isolate dependencies.
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows use: venv\Scripts\activate
-   ```
+# Or using standard python
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-3. **Install Dependencies:**
-   Install the required Python packages from `requirements.txt`:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 3. Configure API Keys
+Verify or update keys in `backend/.env`:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+SARVAM_API_KEY=your_sarvam_api_key_here
+PORT=8000
+SECRET_KEY=dev-secret-key
+```
 
-4. **Set Environment Variables:**
-   The AI service requires an OpenAI API key to function correctly. Set it in your terminal:
-   ```bash
-   export OPENAI_API_KEY="your-real-api-key-here"
-   ```
-   *(Alternatively, you can create a `.env` file in the backend directory and python-dotenv will load it automatically).*
-
-5. **Run the Server:**
-   Start the Flask development server:
-   ```bash
-   python main.py
-   ```
-   You should see output indicating that the server is running on `http://127.0.0.1:8000`. The SQLite database (`parental_task_app.db`) will be automatically created in the backend folder upon first run.
+### 4. Start the Application
+```bash
+python main.py
+```
+Open your browser to:
+- **Local machine**: `http://localhost:8000`
+- **Phone on the same Wi-Fi**: `http://<your-computer-ip>:8000`
 
 ---
 
-## 2. Running the Android Frontend
+## Option 2: Running Directly on Android via Termux
 
-The frontend is a Native Android app written in Java.
+For complete instructions on running the entire application natively on your phone without a PC, refer to:
+👉 **[TERMUX_SETUP.md](./TERMUX_SETUP.md)**
 
-### Prerequisites
-- **Android Studio** installed on your machine.
-- An **Android Emulator** running API 26 or higher, OR a physical Android device connected via USB debugging.
+Quick summary for Termux:
+```bash
+pkg update && pkg install python git -y
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+Then open Chrome on Android, visit `http://localhost:8000`, and tap **"Add to Home Screen"** or **"Install app"**.
 
-### Setup Steps
-1. **Open the Project in Android Studio:**
-   - Launch Android Studio.
-   - Select **File > Open**.
-   - Navigate to and select the `child_parent_system/android/app` directory.
-   - Wait for Android Studio to sync the Gradle files and download required dependencies.
+---
 
-2. **Configure Localhost Networking (Emulator Only):**
-   - The app's `RetrofitClient` is hardcoded to `http://10.0.2.2:8000/`. This is the special alias used by the Android Emulator to connect to your computer's `127.0.0.1` localhost.
-   - *Note: If you are testing on a physical device, you must change the `BASE_URL` in `RetrofitClient.java` to your computer's actual local IP address (e.g., `http://192.168.1.5:8000/`).*
+## 3. Testing the Application End-to-End
 
-3. **Build and Run:**
-   - Click the green **Run (Play)** button in the top toolbar of Android Studio.
-   - Select your emulator or physical device.
-   - The app will compile and install on the device.
-
-### Note on Firebase (FCM)
-Push notifications via `FcmService` require a valid `google-services.json` file. To fully test push notifications:
-1. Create a project in the Firebase Console.
-2. Register the Android app with the package name `com.example.parentaltaskapp`.
-3. Download the `google-services.json` file and place it in the `android/app/` directory.
-4. Add the `com.google.gms.google-services` plugin to your `build.gradle` (omitted in scaffolding for simplicity).
+1. **Register a Child**:
+   - Go to Home (`/`).
+   - Tap `+ Add Child`, enter a name (e.g., "Aarav"), phone number, and age.
+2. **Record Audio**:
+   - Tap `Record` in the bottom navigation bar.
+   - Select your registered child.
+   - Tap `Hold to Record`, speak your request (e.g. *"Mom, can you order a paneer pizza from Domino's?"*), then stop.
+   - Tap `Process Audio`.
+3. **Review & Decide**:
+   - The AI displays a plain-language summary card with estimated cost.
+   - Tap **Approve** to execute or **Decline** to cancel.
+4. **Emergency Test**:
+   - Record distress audio (e.g. *"Mom I am hurt and scared please help me!"*).
+   - The system detects the emergency, bypasses approval, alerts the parent, and starts the backup contact escalation timer.

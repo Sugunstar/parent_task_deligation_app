@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}LevelUp — Task Review{% endblock %}
+
+{% block content %}
+<section>
+    <div id="task-detail">
+        <article aria-busy="true">Loading task...</article>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const TASK_ID = {{ task_id }};
+
+    document.addEventListener('DOMContentLoaded', loadTask);
+
+    async function loadTask() {
+        const container = document.getElementById('task-detail');
+        try {
+            const res = await fetch(`/api/tasks/${TASK_ID}`);
+            if (!res.ok) {
+                container.innerHTML = '<article><p>Task not found.</p></article>';
+                return;
+            }
+
+            const task = await res.json();
+            const details = task.details || {};
+            const date = task.created_at ? new Date(task.created_at).toLocaleString() : 'Unknown';
+            const categoryIcon = getCategoryIcon(task.category);
+
+            let actionButtons = '';
+            if (task.status === 'pending') {
+                actionButtons = `
+                    <div class="grid">
+                        <button class="approve-btn" onclick="submitDecision('approved')">✅ Approve</button>
+                        <button class="decline-btn outline secondary" onclick="submitDecision('declined')">❌ Decline</button>
+                    </div>
+                `;
+            } else {
+                const badge = getStatusBadge(task.status);
+                actionButtons = `<p>Status: ${badge}</p>`;
+                if (task.decided_at) {
+                    actionButtons += `<p><small>Decided at: ${new Date(task.decided_at).toLocaleString()}</small></p>`;
+                }
+            }
+
+            container.innerHTML = `
+                <article class="approval-card">
+                    <header>
+                        <a href="/history" style="font-size: 0.85rem;">← Back to History</a>
+                        <hgroup>
+                            <h2>${categoryIcon} ${escapeHtml(task.summary_text || 'No summary')}</h2>
+                            <p>${escapeHtml(task.child_name)} · ${date} · Confidence: ${Math.round((details.confidence || task.confidence || 0.8) * 100)}%</p>
+                        </hgroup>
+                    </header>
+
+                    <h4>Transcript</h4>
+                    <blockquote>"${escapeHtml(task.transcript)}"</blockquote>
+
+                    <h4>Details</h4>
+                    <table>
+                        <tbody>
+                            ${Object.entries(details).map(([k, v]) =>
+                                `<tr><td><strong>${escapeHtml(k)}</strong></td><td>${escapeHtml(String(v))}</td></tr>`
+                            ).join('')}
+                        </tbody>
+                    </table>
+
+                    <footer>
+                        ${actionButtons}
+                    </footer>
+                </article>
+            `;
+
+        } catch (err) {
+            container.innerHTML = '<article><p>Error loading task.</p></article>';
+            console.error(err);
+        }
+    }
+
+    async function submitDecision(decision) {
+        try {
+            const res = await fetch(`/api/tasks/${TASK_ID}/decision`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ decision }),
+            });
+
+            if (res.ok) {
+                loadTask(); // Reload to show updated status
+            } else {
+                const data = await res.json();
+                alert('Error: ' + (data.error || 'Failed'));
+            }
+        } catch (err) {
+            alert('Network error');
+        }
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'pending': '<mark style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px;">⏳ Pending</mark>',
+            'executed': '<mark style="background: #22c55e; color: white; padding: 2px 8px; border-radius: 4px;">✅ Executed</mark>',
+            'declined': '<mark style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px;">❌ Declined</mark>',
+            'failed': '<mark style="background: #6b7280; color: white; padding: 2px 8px; border-radius: 4px;">⚠️ Failed</mark>',
+        };
+        return badges[status] || `<mark>${status}</mark>`;
+    }
+
+    function getCategoryIcon(category) {
+        switch (category) {
+            case 'food': return '🍕';
+            case 'cab': return '🚕';
+            default: return '📋';
+        }
+    }
+</script>
+{% endblock %}

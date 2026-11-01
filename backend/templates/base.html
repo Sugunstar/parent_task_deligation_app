@@ -1,0 +1,58 @@
+<!-- Base template for the PWA -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>{% block title %}LevelUp{% endblock %}</title>
+
+    <!-- Pico CSS — lightweight, classless, responsive -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Top app bar -->
+    <header class="app-header">
+        <nav>
+            <ul>
+                <li><strong>📋 LevelUp</strong></li>
+            </ul>
+            <ul>
+                <li><a href="/api/health" role="button" class="outline contrast" style="padding: 4px 10px; font-size: 0.75rem;">API</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Main content area -->
+    <main class="container app-main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bottom navigation bar -->
+    <nav class="bottom-nav">
+        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Home</span>
+        </a>
+        <a href="/record" class="nav-item {% if request.path == '/record' %}active{% endif %}">
+            <span class="nav-icon">🎙️</span>
+            <span class="nav-label">Record</span>
+        </a>
+        <a href="/history" class="nav-item {% if request.path == '/history' %}active{% endif %}">
+            <span class="nav-icon">📜</span>
+            <span class="nav-label">History</span>
+        </a>
+    </nav>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

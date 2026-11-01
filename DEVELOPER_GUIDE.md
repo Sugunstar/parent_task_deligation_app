@@ -1,86 +1,131 @@
-# Developer Guide
+# Developer Guide: LevelUp Parental Task Delegation PWA
 
-Welcome to the Developer Guide for the AI-Powered Parental Task Delegation App. This document provides an in-depth breakdown of the project architecture, directory structure, and the purpose of individual files and functions.
+Welcome to the Developer Guide for the **AI-Powered Parental Task Delegation App (LevelUp PWA)**. This document provides an in-depth breakdown of the project architecture, directory structure, data models, services, and API contracts.
 
 ---
 
 ## Architecture Overview
 
-The system is split into two primary layers:
-1. **Flask Backend (`/backend`)**: A REST API responsible for handling audio uploads, communicating with OpenAI (Whisper + GPT-4), managing the database, and triggering task executions (mocked) or emergency escalations.
-2. **Android Frontend (`/android`)**: A native Java Android app installed *only* on the parent's phone. It captures child call recordings (or accepts manual uploads), interacts with the backend, and displays Approval/Emergency push notifications.
+```mermaid
+flowchart TD
+    User["Parent (Phone Browser / PWA)"]
+    
+    subgraph Frontend["PWA Layer (Jinja2 + Vanilla JS + Pico CSS)"]
+        UI_Home["Home (Manage Children)"]
+        UI_Record["Record & Process (MediaRecorder)"]
+        UI_Task["Task Approval Card"]
+        UI_History["History & Filters"]
+        UI_Emergency["Emergency Alert Screen"]
+        SW["Service Worker & Manifest"]
+    end
+    
+    subgraph Backend["Flask Server (Local on Termux or PC)"]
+        API_Calls["/api/calls"]
+        API_Tasks["/api/tasks"]
+        API_Children["/api/children"]
+        API_Emergency["/api/emergency"]
+        DB[(SQLite - parental_task_app.db)]
+    end
+    
+    subgraph AI_Pipeline["AI & Services Layer"]
+        STT["Sarvam API / Local Whisper"]
+        Gemini["Google Gemini (gemini-2.5-flash / flash-latest)"]
+        Fallback["Safety Rule-Based Classifier"]
+        MockExec["Mock Execution (Food/Cab)"]
+        Escalation["Emergency Escalation Timer"]
+    end
+    
+    User --> Frontend
+    Frontend --> Backend
+    Backend --> DB
+    API_Calls --> AI_Pipeline
+    API_Tasks --> MockExec
+    API_Emergency --> Escalation
+```
+
+The system is designed as a standalone **Progressive Web App (PWA)** powered by a lightweight Python/Flask backend that can run directly inside **Termux on an Android phone** or on any standard Linux/macOS/Windows host.
 
 ---
 
-## 1. Backend (`/backend`)
+## Directory Structure
 
-The backend is built with Python, Flask, SQLAlchemy (SQLite), and Pydantic.
-
-### Core Configuration
-- **`main.py`**: The application entry point. 
-  - Initializes the Flask application (`app = Flask(__name__)`).
-  - Registers the API routing Blueprints (calls, tasks, children, emergency).
-  - Triggers SQLAlchemy to create the database tables if they do not exist.
-  - Runs the local development server on port 8000.
-- **`database.py`**: Handles the SQLAlchemy engine setup. Defines the `SQLALCHEMY_DATABASE_URL` (currently a local SQLite file) and exposes the `Base` declarative class used by the models.
-- **`requirements.txt`**: Python dependencies including `flask`, `sqlalchemy`, `pydantic`, and `openai`.
-
-### Data Layer
-- **`models.py`**: Defines the SQLAlchemy database tables.
-  - `Parent`: Stores parent account info and Firebase auth IDs.
-  - `ChildProfile`: Stores child info, their phone number, and auto-approval strictness rules.
-  - `TaskRecord`: Logs transcribed calls, GPT-4 task summaries, and the parent's accept/decline decisions.
-  - `EmergencyEvent`: Logs identified emergencies and escalation tracking.
-- **`schemas.py`**: Pydantic models used to strictly validate incoming JSON requests and format API responses (e.g., `ChildProfileCreate`, `IntentResponse`).
-
-### API Endpoints (`/api`)
-Flask Blueprints mapping URLs to specific logical functions.
-- **`calls.py`**:
-  - `POST /calls/upload`: Accepts the multipart audio file upload from the Android app.
-  - `POST /calls/<id>/process`: The core processing pipeline. It currently mocks receiving the transcript, but in production, it routes the transcript through the `ai_service` to extract the intent and evaluate emergencies.
-- **`tasks.py`**:
-  - `POST /tasks/<id>/decision`: Accepts the parent's decision ("approved" or "declined"). If approved, it triggers the `MockExecutionService`.
-- **`children.py`**:
-  - `POST /children/`: Endpoint to register a new `ChildProfile`.
-  - `GET /children/<id>/tasks`: Fetches task history for a specific child.
-  - `POST /children/<id>/enroll-voice`: Endpoint for Phase 2 voice biometric enrollment.
-- **`emergency.py`**:
-  - `POST /emergency/<id>/acknowledge`: Allows the parent to acknowledge an emergency.
-  - Contains background timer logic (`start_escalation_timer`) to escalate to a backup contact if the parent doesn't respond.
-
-### Services Layer (`/services`)
-Business logic abstracted away from the API routes.
-- **`ai_service.py`**: 
-  - `transcribe_audio()`: Calls OpenAI's Whisper API to convert audio to text.
-  - `extract_intent_from_transcript()`: Uses OpenAI's `gpt-4o` with Structured JSON Output mode to reliably parse the transcript into a strict Pydantic model (`IntentResponse`). It categorizes the task (food/cab/none) and detects distress for the emergency bypass.
-- **`mock_execution.py`**:
-  - `execute_task()`: Simulates network latency (time.sleep) and returns a success status. Designed to mock Zomato/Uber integrations safely during the prototype phase.
-- **`voice_biometrics.py`**:
-  - Phase 2 mock implementations of `compute_voice_embedding()` and `verify_voice()` simulating Resemblyzer cosine similarity logic.
+```text
+child_parent_system/
+├── backend/
+│   ├── api/
+│   │   ├── calls.py         # Audio upload & transcription/intent processing
+│   │   ├── children.py      # Child profile CRUD & task association
+│   │   ├── emergency.py     # Distress alerts, parent acknowledgement & timer
+│   │   └── tasks.py         # Task listing, detail view & decision approval
+│   ├── services/
+│   │   ├── ai_service.py     # Dual STT + Gemini intent classification & fallback
+│   │   ├── mock_execution.py # Simulated Zomato/Uber order placement
+│   │   └── voice_biometrics.py # Speaker embedding placeholders
+│   ├── static/
+│   │   ├── css/app.css      # Custom mobile-first theme rules
+│   │   ├── js/app.js        # Global utilities, Service Worker & emergency banner
+│   │   ├── icons/           # PWA icons (192x192, 512x512)
+│   │   ├── manifest.json    # Web app manifest for standalone mobile installation
+│   │   └── sw.js            # Service worker caching strategy
+│   ├── templates/
+│   │   ├── base.html        # App shell with bottom navigation
+│   │   ├── index.html       # Child management & pending tasks dashboard
+│   │   ├── record.html      # Audio recording / upload & live processing card
+│   │   ├── task.html        # Detailed approval view with decision buttons
+│   │   ├── history.html     # Past task execution log with status filters
+│   │   └── emergency.html   # Full-screen distress screen
+│   ├── database.py          # SQLAlchemy engine and session provider
+│   ├── main.py              # Application entry point & template route bindings
+│   ├── models.py            # SQLAlchemy database schemas
+│   ├── schemas.py           # Pydantic validation schemas
+│   ├── requirements.txt     # Python dependencies
+│   └── .env                 # Environment variables (API keys, ports)
+├── planning/                # Conceptual planning documents & masterplan
+├── DEVELOPER_GUIDE.md       # Technical architecture (this document)
+├── KNOWN_LIMITATIONS.md     # Engineering constraints and trade-offs
+├── README.md                # Project overview and quick start
+├── RUN_INSTRUCTIONS.md      # Development and local running guide
+└── TERMUX_SETUP.md          # Step-by-step Termux on Android instructions
+```
 
 ---
 
-## 2. Android Frontend (`/android`)
+## 1. Backend Layer (`/backend`)
 
-The frontend is a Native Android application written in Java.
+### Core Entry Point (`main.py`)
+- Loads environment variables via `python-dotenv`.
+- Creates SQLite database tables upon launch.
+- Registers API blueprints under `/api/*`.
+- Renders Jinja2 HTML templates for frontend pages.
+- Exposes health-check endpoint at `/api/health`.
 
-### Core Configuration
-- **`build.gradle`**: Contains all Android dependencies, including Retrofit for networking, Google Material components, and Firebase (FCM + Auth). Configured for `minSdk 26`.
-- **`AndroidManifest.xml`**: Defines application permissions (Internet, Record Audio, Read Phone State) and registers all Activities, Receivers, and Services.
+### Database & ORM (`database.py`, `models.py`)
+Built on SQLite with thread-safe connection pooling:
+- **`Parent`**: Master account info, email, and authentication PIN.
+- **`ChildProfile`**: Child name, phone number, age, auto-approval thresholds, and emergency backup contact.
+- **`TaskRecord`**: Logs audio call UUID, transcript, plain-language summary, extracted metadata (cost, destination, restaurant), and parent decision status (`pending`, `approved`, `declined`, `executed`, `failed`).
+- **`EmergencyEvent`**: Tracks trigger reasons, transcript excerpts, location coordinates, acknowledgement status, and backup contact notifications.
 
-### Networking (`/network`)
-- **`RetrofitClient.java`**: Configures the Retrofit instance pointing to the local Flask server (`http://10.0.2.2:8000/` for emulators).
-- **`ApiService.java`**: The Retrofit Interface mapping Java methods to the Flask API endpoints (e.g., `@Multipart @POST("calls/upload")`).
+---
 
-### User Interface (`/ui`)
-- **`home/HomeActivity.java`**: The main launch screen for managing child profiles.
-- **`history/HistoryActivity.java`**: Displays the log of past task requests.
-- **`profile/ProfileActivity.java`**: Parent account settings.
-- **`approval/ApprovalCardActivity.java`**: Triggered via push notification. Displays the AI-generated task summary with Accept/Decline buttons. Calls the `/tasks/<id>/decision` endpoint.
-- **`emergency/EmergencyAlertActivity.java`**: A high-priority, full-screen activity triggered during emergencies.
+## 2. AI & Intent Pipeline (`services/ai_service.py`)
 
-### Features
-- **`call/ManualUploadAudioSource.java`**: A fallback class that uploads an existing audio file from the device storage to the backend. Used when native silent call recording is blocked by the Android OS/OEM.
-- **`notifications/FcmService.java`**: Extends `FirebaseMessagingService`. Listens for incoming push notifications from the backend.
-  - `showApprovalNotification()`: Builds a standard notification that opens `ApprovalCardActivity`.
-  - `showEmergencyNotification()`: Builds a max-priority alarm notification that ignores Do Not Disturb and launches `EmergencyAlertActivity` immediately.
+### Speech-to-Text (STT) Cascade
+1. **Primary**: Sarvam AI API (`https://api.sarvam.ai/speech-to-text-translate`) for fast transcription with Indian accent and regional language support.
+2. **Fallback**: Local Whisper (`whisper.load_model('base')`), lazy-loaded on demand to ensure zero memory overhead if not installed.
+
+### Intent Extraction & Emergency Safety Net
+Intent classification uses a resilient multi-tier cascade:
+1. **Gemini 2.5 Flash**: Parses the transcript into strict JSON matching the `IntentResponse` Pydantic model.
+2. **Gemini Flash Latest**: Fallback if primary model encounters temporary API demand spikes.
+3. **Safety Rule-Based Classifier**: Operates 100% offline using keyword matching. If distress phrases (`"help me"`, `"hurt"`, `"scared"`, `"stranger"`, `"bleeding"`) are detected, the system immediately flags `is_emergency: True`, bypassing standard task approval.
+
+---
+
+## 3. Frontend PWA (`/templates`, `/static`)
+
+- **Classless Base**: Utilizes [Pico CSS](https://picocss.com/) via CDN — responsive, lightweight (~10KB), requiring no Node.js or bundlers.
+- **Bottom Navigation**: Mimics native mobile navigation (`Home`, `Record`, `History`).
+- **In-Browser Audio Capture**: `navigator.mediaDevices.getUserMedia()` feeds into `MediaRecorder`, outputting standard WebM/Opus or WAV blobs uploaded via `multipart/form-data`.
+- **Installability**: `manifest.json` specifies `"display": "standalone"`, enabling users to add the application directly to their Android launcher from Chrome.
+- **Global Emergency Polling**: [`app.js`](file:///home/adithya2007/Desktop/level%20up/child_parent_system/backend/static/js/app.js) polls every 10 seconds for unacknowledged emergencies, raising high-priority web notifications and an app-wide emergency banner.

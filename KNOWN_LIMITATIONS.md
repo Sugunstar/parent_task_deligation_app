@@ -1,28 +1,50 @@
 # Known Limitations & Technical Constraints
 
-This document outlines the known technical limitations in the Phase 1 & 2 prototype of the Parental Task Delegation App.
+This document outlines the known technical constraints and design trade-offs in the MVP prototype of the Parental Task Delegation App (LevelUp PWA).
 
-## 1. Automatic Call Recording Reliability
-The application attempts to automatically capture the phone call audio natively on the device when a call from a registered child is detected.
+---
 
-**Limitation:** Automatic, silent call recording is heavily restricted in modern Android (Android 10+). 
-- To function, the app typically needs to hold the `Default Dialer` role.
-- Even with the default dialer role, behavior varies widely across OEMs (Samsung, Xiaomi, Pixel).
-- In some regions and carriers, call recording is fundamentally blocked by the OS framework.
+## 1. Call Audio Ingestion (Browser vs. System Call Interception)
 
-**Workaround/Fallback:** 
-If the `NativeCallRecordingSource` fails to produce an audio file after a call ends, the app falls back to the `ManualUploadAudioSource` flow. This triggers a lightweight prompt asking the parent to manually share the call recording from their device's native voice recorder app into this application.
+In this MVP phase, the application runs as a **Progressive Web App (PWA)** hosted locally on Termux or accessed via the phone's browser.
 
-## 2. Emergency Location Tracking
-In the event of an emergency (distress detected via Voice/STT), the system attempts to share the child's last known location with the parent and backup contacts.
+* **Limitation**: Web applications running in standard mobile browsers cannot passively intercept cellular phone calls or record cellular audio in the background without explicit user interaction due to Android sandboxing and OS-level privacy protections.
+* **MVP Implementation**: Audio is captured actively via the HTML5 `MediaRecorder` API (one-tap voice recording in the browser) or uploaded as an audio file (`.wav`, `.mp3`, `.webm`, `.ogg`, `.m4a`).
+* **Future Enhancement (Phase 3)**: A native companion service holding the Android `Default Dialer` or Accessibility role can be integrated to passively dump call recordings into a local folder monitored by the Flask server.
 
-**Limitation:** 
-The child's phone must have some digital capability to provide GPS data. A completely offline basic keypad phone (feature phone without data or SMS location sharing capabilities) cannot provide GPS coordinates to the parent's app. 
+---
 
-**Workaround:** 
-For children using feature phones without location sharing capabilities, the location tracking feature will fail gracefully. The parent will still receive the emergency alert and the transcript, but the `location_lat` and `location_lng` fields will be null. A lightweight SMS-based location responder on the child's phone could be explored as a future enhancement for feature phone users.
+## 2. Emergency Location Tracking for Basic Phones
 
-## 3. Mocked Integrations
-- **Task Execution:** Real integrations with Zomato, Uber, etc., are mocked via `MockExecutionService` simulating delays and success outcomes.
-- **Biometrics:** `voice_biometrics.py` simulates the Resemblyzer vectorization and cosine similarity logic to avoid heavy native ML dependencies in this prototype stage.
-- **SMS Escalation:** Backup contact escalation currently simulates an FCM push notification instead of a real Twilio SMS.
+During detected emergencies, the system prepares location telemetry alongside the distress alert.
+
+* **Limitation**: When a child calls from an offline basic feature phone (keypad phone without GPS or cellular data enabled), the child's device cannot deliver GPS coordinates to the parent's server.
+* **Graceful Degradation**: The system logs `location_lat: null` and `location_lng: null`. The parent immediately receives the high-priority alarm notification with the verbatim transcript and distress reason, bypassing normal task approval flows.
+* **Workaround**: An optional SMS-based cell-tower triangulation or SMS location-responder can be explored for feature phones in future milestones.
+
+---
+
+## 3. Real-World Third-Party Platform Execution
+
+When a parent approves a task (e.g. food delivery or ride booking):
+
+* **Limitation**: Consumer platforms like Zomato, Swiggy, Uber, and Ola do not offer public, open developer APIs for third-party automated order placement and payment execution without institutional partnerships.
+* **MVP Implementation**: Real-world execution is safely simulated via `services/mock_execution.py`, replicating network delays, realistic restaurant/destination responses, and state persistence (`pending` → `executed` / `failed`).
+
+---
+
+## 4. Voice Biometrics
+
+Caller verification across children:
+
+* **Limitation**: Local voice biometric verification (e.g., using Resemblyzer or WavLM embeddings) requires compiling native C++ audio libraries and PyTorch on mobile ARM architectures, which adds unnecessary footprint to a quick-running Termux environment.
+* **MVP Implementation**: The prototype scaffolds the enrollment and similarity check endpoints (`voice_biometrics.py`) while relying on phone-number binding and parent approval cards for identity safety.
+
+---
+
+## 5. Escalation Delivery
+
+When an emergency alert is not acknowledged within the configurable window (default 3 minutes):
+
+* **Limitation**: Cellular SMS delivery directly from Termux requires the `termux-api` package and Android `SEND_SMS` runtime permission, or an external cloud SMS gateway (e.g., Twilio).
+* **MVP Implementation**: Background thread escalation updates the database record (`backup_contact_notified = True`) and logs the high-priority alert. Integration with `termux-sms-send` or Twilio is ready to be hooked into `api/emergency.py:escalate_to_backup()`.
